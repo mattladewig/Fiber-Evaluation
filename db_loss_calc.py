@@ -2,17 +2,17 @@ import math
 import argparse
 import json
 
-def calculate_loss(transmit_power, receive_power):
+def calculate_attenuation(tx_power, rx_power):
     # Calculate the ratio
-    ratio = transmit_power / receive_power
+    ratio = tx_power / rx_power
 
     # Calculate the loss in dB
-    loss_dB = 10 * math.log10(ratio)
+    rx_attenuation_dBm = 10 * math.log10(ratio)
 
     # Calculate the loss in mW
-    loss_mW = transmit_power - receive_power
+    rx_attenuation_mW =  rx_power - tx_power
 
-    return loss_dB, loss_mW
+    return rx_attenuation_dBm, rx_attenuation_mW
 
 def calculate_loss_budget(fiber_type, wavelength, fiber_length, num_connectors, num_splices):
     # Define loss values
@@ -35,87 +35,108 @@ def calculate_loss_budget(fiber_type, wavelength, fiber_length, num_connectors, 
     return total_loss_budget
 
 def main():
-    """
-    Calculate optical loss and validate against loss budget.
-
-    Args:
-        --tx_power (float): Transmission power in mW (valid decimal positive number).
-        --rx_power (float): Received power in mW (valid decimal positive number).
-        --fiber_type (str): Fiber type: 's' for singlemode, 'm' for multimode (valid 's' or 'm' only).
-        --wavelength (int): Wavelength in nm (valid 850 or 1300 for multimode, 1310 or 1550 for singlemode).
-        --fiber_length (float): Total length of the fiber in meters (valid 1 or more).
-        --num_connectors (int): Number of mated connectors (valid 0 or more).
-        --num_splices (int): Number of splices (valid 0 or more).
-        --json (bool): Output results as JSON.
-
-    Returns:
-        None
-
-    Prints:
-        Summary of Inputs and Results if --json is not provided.
-        JSON representation of the summary if --json is provided.
-    """
-    parser = argparse.ArgumentParser(description="Calculate optical loss and validate against loss budget.")
-    parser.add_argument("--tx_power", type=float, required=True, help="Transmission power in mW") #valid decimal positive number
-    parser.add_argument("--rx_power", type=float, required=True, help="Received power in mW") # valid decimal positive number
+ 
+    parser = argparse.ArgumentParser(description="Calculate optical loss and evaluate against loss budget.")
+    parser.add_argument("--tx", type=float, required=False, help="TX power in mW") # valid decimal positive number
+    parser.add_argument("--rx", type=float, required=False, help="RX power in mW") # valid decimal positive number
+    parser.add_argument("--tx_dbm", type=float, required=False, help="TX power in dBm") # valid decimal positive or positive dBm value
+    parser.add_argument("--rx_dbm", type=float, required=False, help="RX power in dBm") # valid decimal positive or positive dBm value
+    parser.add_argument("--min_rx_dbm", type=float, required=False, help="Target minimum RX dBm. Default -5dBm") # valid decimal positive or positive dBm value
+    parser.add_argument("--max_rx_dbm", type=float, required=False, help="Target maximum RX dBm. Default +5dBm") # valid decimal positive or positive dBm value
     parser.add_argument("--fiber_type", choices=["s", "m"], help="Fiber type: 's' for singlemode, 'm' for multimode") # Valid s or m only, s = singlemode, m = multimode
     parser.add_argument("--wavelength", type=int, choices=[850, 1300, 1310, 1550], help="Wavelength in nm") # Valid 850 or 1300 for multimode, 1310 or 1550 for singlemode
     parser.add_argument("--fiber_length", type=float, help="Total length of the fiber in meters") # Valid 1 or more
     parser.add_argument("--num_connectors", type=int, help="Number of mated connectors") # Valid 0 or more
     parser.add_argument("--num_splices", type=int, help="Number of splices") # Valid 0 or more
-    parser.add_argument("--json", action="store_true", help="Output results as JSON")
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
-
-    # Calculate the loss
-    loss_dB, loss_mW = calculate_loss(args.tx_power, args.rx_power)
-
-    # Determine if it's a loss or gain
-    if loss_mW > 0:
-        result = f"-{abs(loss_mW):.4f} mW / +{abs(loss_dB):.2f} dBm loss"
+    
+    # If tx_dbm is not provided, calculate it from tx
+    if args.tx_dbm is None and args.tx is not None:
+        args.tx_dbm = 10 * math.log10(args.tx)
+    elif args.tx_dbm is not None and args.tx is None:
+    # If tx is not provided, calculate it from tx_dbm
+        args.tx = 10 ** (args.tx_dbm / 10)
     else:
-        if loss_mW == 0:
-            result = f"0.0000 mW / 0.00 dBm"
-        else:
-            result = f"{abs(loss_mW):.4f} mW / -{abs(loss_dB):.2f} dBm gain"
+        # Else if both tx and tx_dbm are not provided, quit
+        print("Please provide either tx or tx_dbm")
+        quit(1)
+    
+    # If rx_dbm is not provided, calculate it from rx
+    if args.rx_dbm is None and args.rx is not None:
+        args.rx_dbm = 10 * math.log10(args.rx)
+    elif args.rx_dbm is not None and args.rx is None:
+    # If rx is not provided, calculate it from rx_dbm
+        args.rx = 10 ** (args.rx_dbm / 10)
+    else:
+        # Else if both rx and rx_dbm are not provided, quit
+        print("Please provide either rx or rx_dbm")
+        quit(1)
+        
+    # If min_rx_dbm is not provided, set it to -5dBm
+    if args.min_rx_dbm is None:
+        args.min_rx_dbm = -5
+    # If max_rx_dbm is not provided, set it to +5dBm
+    if args.max_rx_dbm is None:
+        args.max_rx_dbm = 5
+            
+    # Calculate the loss
+    rx_attenuation_dBm, rx_attenuation_mW = calculate_attenuation(args.tx, args.rx)
+
+    attenuation_combined = f"{abs(rx_attenuation_mW):.4f} mW / -{abs(rx_attenuation_dBm):.2f} dBm"
 
     # Validate against loss budget if all required arguments are provided
-    if args.fiber_type and args.wavelength and args.fiber_length is not None and args.num_connectors is not None and args.num_splices is not None:
+    if args.fiber_type and args.wavelength and args.fiber_length is not None:
+        num_connectors = 0 if args.num_connectors is None else args.num_connectors
+        num_splices = 0 if args.num_splices is None else args.num_splices
         fiber_type = "singlemode" if args.fiber_type == 's' else "multimode"
-        loss_budget = calculate_loss_budget(fiber_type, args.wavelength, args.fiber_length, args.num_connectors, args.num_splices)
+        loss_budget = calculate_loss_budget(fiber_type, args.wavelength, args.fiber_length, num_connectors, num_splices)
 
-        if abs(loss_dB) <= loss_budget:
-            validation_result = f"The observed loss of {result} is within the acceptable loss budget of {loss_budget:.2f}."
+        if abs(rx_attenuation_dBm) <= loss_budget:
+            evaluation = "PASS"
+            evaluation_detail = f"Attenuation of {attenuation_combined} is within the calculated TIA-568 maximum loss budget of {loss_budget:.2f} dBm."
         else:
-            excess_percentage = ((abs(loss_dB) - loss_budget) / loss_budget) * 100
-            validation_result = f"The observed loss of {result} exceeds the acceptable loss budget of {loss_budget:.2f} dB by {excess_percentage:.2f}%."
+            excess_percentage = ((abs(rx_attenuation_dBm) - loss_budget) / loss_budget) * 100
+            evaluation = "FAIL"
+            evaluation_detail = f"Attenuation of {attenuation_combined} exceeds the calculated TIA-568 maximum loss budget of {loss_budget:.2f} dBm by {excess_percentage:.2f}%."
 
         summary = {
-            "Transmission Power": f"{args.tx_power} mW",
-            "Received Power": f"{args.rx_power} mW",
-            "Observed Loss": result,
+            "TX Power mW": f"{abs(args.tx):.4f}",
+            "TX Power dBm": f"{(args.tx_dbm):.2f}",
+            "RX Power mW": f"{abs(args.rx):.4f}",
+            "RX Power dBm": f"{(args.rx_dbm):.2f}",
+            "RX Attenuation mW": f"{(rx_attenuation_mW):.4f}",
+            "RX Attenuation dBm": f"{abs(rx_attenuation_dBm):.2f}",
             "Fiber Type": fiber_type,
-            "Wavelength": f"{args.wavelength} nm",
-            "Fiber Length": f"{args.fiber_length} meters",
-            "Number of Mated Connectors": args.num_connectors,
-            "Number of Splices": args.num_splices,
-            "Calculated Loss Budget": f"{loss_budget:.2f} dB",
-            "Validation Result": validation_result
+            "Fiber Wavelength": f"{args.wavelength}",
+            "Fiber Length Meters": f"{args.fiber_length}",
+            "Number of Mated Connectors": num_connectors,
+            "Number of Splices": num_splices,
+            "TIA-568 dBm Max Loss Budget": f"{loss_budget:.2f}",
+            "TIA-568 Evaluation": evaluation,
+            "TIA-568 Detail": evaluation_detail
         }
     else:
         summary = {
-            "Transmission Power": f"{args.tx_power} mW",
-            "Received Power": f"{args.rx_power} mW",
-            "Observed Loss": result
-        }
+            "TX Power mW": f"{abs(args.tx):.4f}",
+            "TX Power dBm": f"{(args.tx_dbm):.2f}",
+            "RX Power mW": f"{abs(args.rx):.4f}",
+            "RX Power dBm": f"{(args.rx_dbm):.2f}",
+            "RX Attenuation mW": f"{(rx_attenuation_mW):.4f}",
+            "RX Attenuation dBm": f"{abs(rx_attenuation_dBm):.2f}",
+            }
 
     if args.json:
+        summary = {key.replace(" ", "_"): str(value).replace(" ", "") if key != "TIA-568 Detail" else str(value) for key, value in summary.items()}
         print(json.dumps(summary, indent=4))
+        quit(0)
     else:
-        print("\nSummary of Inputs and Results:")
+        print("\nSummary of Inputs and Attenuation:")
         for key, value in summary.items():
             print(f"    {key}: {value}")
         print("\n")
+        quit(0)
 
 if __name__ == "__main__":
     main()

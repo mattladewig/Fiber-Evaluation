@@ -79,13 +79,13 @@ Use these numbers as estimates for "pass/fail" limits for testing. If the field-
 ## Program Usage
 
 ```bash
-python loss_calc.py --tx_power <transmit_power> --rx_power <receive_power> [--fiber_type <fiber_type>] [--wavelength <wavelength>] [--fiber_length <fiber_length>] [--num_connectors <num_connectors>] [--num_splices <num_splices>] [--json]
+python loss_calc.py --tx <transmit_power> --rx <receive_power> [--fiber_type <fiber_type>] [--wavelength <wavelength>] [--fiber_length <fiber_length>] [--num_connectors <num_connectors>] [--num_splices <num_splices>] [--json]
 ```
 
 ### Arguments
 
-- `--tx_power <transmit_power>`: Transmission power in mW (required)
-- `--rx_power <receive_power>`: Received power in mW (required)
+- `--tx <transmit_power>`: Transmission power in mW (required)
+- `--rx <receive_power>`: Received power in mW (required)
 - `--fiber_type <fiber_type>`: Fiber type: 's' for singlemode, 'm' for multimode
 - `--wavelength <wavelength>`: Wavelength in nm
 - `--fiber_length <fiber_length>`: Total length of the fiber in meters
@@ -97,17 +97,17 @@ python loss_calc.py --tx_power <transmit_power> --rx_power <receive_power> [--fi
 
 1. Calculate loss and validate against loss budget:
 ```bash
-python loss_calc.py --tx_power 10 --rx_power 5 --fiber_type s --wavelength 1310 --fiber_length 1000 --num_connectors 2 --num_splices 1
+python loss_calc.py --tx 10 --rx 5 --fiber_type s --wavelength 1310 --fiber_length 1000 --num_connectors 2 --num_splices 1
 ```
 
 2. Calculate loss without validating against loss budget:
 ```bash
-python loss_calc.py --tx_power 10 --rx_power 5
+python loss_calc.py --tx 10 --rx 5
 ```
 
 3. Calculate loss and output results as JSON:
 ```bash
-python loss_calc.py --tx_power 10 --rx_power 5 --json
+python loss_calc.py --tx 10 --rx 5 --json
 ```
 
 # References
