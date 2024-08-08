@@ -2,33 +2,6 @@ import math
 import argparse
 import json
 
-"""
-This program calculates optical loss and validates it against a loss budget.
-
-Usage:
-    python loss_calc.py --tx_power <transmit_power> --rx_power <receive_power> [--fiber_type <fiber_type>] [--wavelength <wavelength>] [--fiber_length <fiber_length>] [--num_connectors <num_connectors>] [--num_splices <num_splices>] [--json]
-
-Arguments:
-    --tx_power <transmit_power>: Transmission power in mW (required)
-    --rx_power <receive_power>: Received power in mW (required)
-    --fiber_type <fiber_type>: Fiber type: 's' for singlemode, 'm' for multimode
-    --wavelength <wavelength>: Wavelength in nm
-    --fiber_length <fiber_length>: Total length of the fiber in meters
-    --num_connectors <num_connectors>: Number of mated connectors
-    --num_splices <num_splices>: Number of splices
-    --json: Output results as JSON
-
-Examples:
-    1. Calculate loss and validate against loss budget:
-        python loss_calc.py --tx_power 10 --rx_power 5 --fiber_type s --wavelength 1310 --fiber_length 1000 --num_connectors 2 --num_splices 1
-
-    2. Calculate loss without validating against loss budget:
-        python loss_calc.py --tx_power 10 --rx_power 5
-
-    3. Calculate loss and output results as JSON:
-        python loss_calc.py --tx_power 10 --rx_power 5 --json
-"""
-
 def calculate_loss(transmit_power, receive_power):
     # Calculate the ratio
     ratio = transmit_power / receive_power
