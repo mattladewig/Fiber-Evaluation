@@ -85,7 +85,7 @@ def validate_inputs(args):
         args (object): The input arguments object.
 
     Returns:
-        error (dict): The error message if any.
+        error (str): The error message if any.
 
     Notes:
         - This function checks if the required input arguments are provided.
@@ -204,7 +204,9 @@ def main():
         "--num_splices", type=int, help="Number of splices"
     )  # Valid empty or more
     parser.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
+
     error = validate_inputs(args)
 
     if error:
@@ -215,6 +217,7 @@ def main():
     # If tx_dbm is not provided, calculate it from tx
     if args.tx_dbm is None and args.tx is not None:
         args.tx_dbm = 10 * math.log10(args.tx)
+
     # If tx is not provided, calculate it from tx_dbm
     elif args.tx_dbm is not None and args.tx is None:
         args.tx = 10 ** (args.tx_dbm / 10)
@@ -222,6 +225,7 @@ def main():
     # If rx_dbm is not provided, calculate it from rx
     if args.rx_dbm is None and args.rx is not None:
         args.rx_dbm = 10 * math.log10(args.rx)
+
     # If rx is not provided, calculate it from rx_dbm
     elif args.rx_dbm is not None and args.rx is None:
         args.rx = 10 ** (args.rx_dbm / 10)
