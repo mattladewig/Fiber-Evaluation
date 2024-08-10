@@ -1,28 +1,10 @@
 import math
 import argparse
 import json
+import math
 
 # MIT License
-
 # Copyright (c) [2024] [Matt Ladewig]
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 
 
 def calculate_attenuation(tx_power, rx_power):
@@ -65,16 +47,6 @@ def calculate_loss_budget_max_dbm(
     return total_loss_budget_max_dbm
 
 
-def state_loss_eval_requirements(args):
-    if args.fiber_type is None:
-        print("Input missing: --fiber_type")
-    if args.wavelength is None:
-        print("Input missing: --wavelength")
-    if args.fiber_length is None:
-        print("Input missing: --fiber_length")
-    return
-
-
 def calculate_loss_budget_typical_dbm(
     fiber_type, wavelength, fiber_length, num_connectors, num_splices
 ):
@@ -100,6 +72,85 @@ def calculate_loss_budget_typical_dbm(
     )
 
     return total_loss_budget_typical_dbm
+
+
+def validate_inputs(args):
+    error = {}
+    missing_input = []
+    invalid_input = []
+    """
+    Validates the input arguments for the fiber evaluation program.
+
+    Args:
+        args (object): The input arguments object.
+
+    Returns:
+        error (dict): The error message if any.
+
+    Notes:
+        - This function checks if the required input arguments are provided.
+        - It checks for specific conditions and raises an error if they are violated.
+    """
+    # Else if both tx and tx_dbm are not provided, quit
+    if args.tx_dbm is None and args.tx is None:
+        missing_input.append("--tx or --tx_dbm")
+    # Else if both rx and rx_dbm are not provided, quit
+    if args.rx_dbm is None and args.rx is None:
+        missing_input.append("--rx or --rx_dbm")
+    if (
+        args.wavelength is None or args.fiber_length is None or args.fiber_type is None
+    ) and (
+        args.wavelength is not None
+        or args.fiber_length is not None
+        or args.fiber_type is not None
+    ):
+        if args.fiber_type is None:
+            missing_input.append("--fiber_type")
+        if args.wavelength is None:
+            missing_input.append("--wavelength")
+        if args.fiber_length is None:
+            missing_input.append("--fiber_length")
+        if args.fiber_type == "s" and args.wavelength == 850:
+            invalid_input.append("Singlemode fiber does not support 850nm wavelength.")
+        if args.fiber_type == "s" and args.wavelength == 1300:
+            invalid_input.append("Singlemode fiber does not support 1300nm wavelength.")
+        if args.fiber_type == "m" and args.wavelength == 1310:
+            invalid_input.append("Multimode fiber does not support 1310nm wavelength.")
+        if args.fiber_type == "m" and args.wavelength == 1550:
+            invalid_input.append("Multimode fiber does not support 1550nm wavelength.")
+        if missing_input:
+            error["missing_input"] = missing_input
+        if invalid_input:
+            error["invalid_input"] = invalid_input
+        if error != {}:
+            return error
+
+
+def format_results(power_eval, loss_eval):
+    """
+    Prints the evaluation results in a formatted manner.
+
+    Args:
+        power_eval (dict): Dictionary containing power evaluation results.
+        loss_eval (dict): Dictionary containing loss evaluation results.
+    """
+    power_eval = {
+        key.replace(" ", "_"): (
+            str(value).replace(" ", "") if key != "Findings" else str(value)
+        )
+        for key, value in power_eval.items()
+    }
+    if loss_eval is not None:
+        loss_eval = {
+            key.replace(" ", "_"): (
+                str(value).replace(" ", "") if key != "Findings" else str(value)
+            )
+            for key, value in loss_eval.items()
+        }
+        print(json.dumps({"power_eval": power_eval, "loss_eval": loss_eval}, indent=4))
+    else:
+        print(json.dumps({"power_eval": power_eval}, indent=4))
+    quit(0)
 
 
 def main():
@@ -148,101 +199,70 @@ def main():
     )  # Valid 1 or more
     parser.add_argument(
         "--num_connectors", type=int, help="Number of mated connectors"
-    )  # Valid 0 or more
+    )  # Valid empty or more
     parser.add_argument(
         "--num_splices", type=int, help="Number of splices"
-    )  # Valid 0 or more
+    )  # Valid empty or more
     parser.add_argument("--json", action="store_true", help="Output as JSON")
-
     args = parser.parse_args()
+    error = validate_inputs(args)
 
-    if (
-        args.tx_dbm is None
-        and args.tx is None
-        and args.rx_dbm is None
-        and args.rx is None
-    ):
-        print("Input missing: (--tx or --tx_dbm) and (--rx or --rx_dbm)")
+    if error:
+        print(json.dumps({"error": error}, indent=4))
         quit(1)
+
+    # setup var for further work
     # If tx_dbm is not provided, calculate it from tx
     if args.tx_dbm is None and args.tx is not None:
         args.tx_dbm = 10 * math.log10(args.tx)
+    # If tx is not provided, calculate it from tx_dbm
     elif args.tx_dbm is not None and args.tx is None:
-        # If tx is not provided, calculate it from tx_dbm
         args.tx = 10 ** (args.tx_dbm / 10)
-    else:
-        # Else if both tx and tx_dbm are not provided, quit
-        print("Input missing: (--tx or --tx_dbm)")
-        quit(1)
 
     # If rx_dbm is not provided, calculate it from rx
     if args.rx_dbm is None and args.rx is not None:
         args.rx_dbm = 10 * math.log10(args.rx)
+    # If rx is not provided, calculate it from rx_dbm
     elif args.rx_dbm is not None and args.rx is None:
-        # If rx is not provided, calculate it from rx_dbm
         args.rx = 10 ** (args.rx_dbm / 10)
-    else:
-        # Else if both rx and rx_dbm are not provided, quit
-        print("Input missing: (--rx or --rx_dbm)")
-        quit(1)
+
+    fiber_type = "singlemode" if args.fiber_type == "s" else "multimode"
+
+    num_connectors = 0 if args.num_connectors is None else args.num_connectors
+
+    num_splices = 0 if args.num_splices is None else args.num_splices
 
     # If rx_target_min_dbm is not provided, set it to -5dBm
     if args.rx_target_min_dbm is None:
         args.rx_target_min_dbm = -5
+
     # If rx_target_max_dbm is not provided, set it to +1dBm
     if args.rx_target_max_dbm is None:
         args.rx_target_max_dbm = 1
-    if (
-        args.wavelength is None or args.fiber_length is None or args.fiber_type is None
-    ) and (
-        args.wavelength is not None
-        or args.fiber_length is not None
-        or args.fiber_type is not None
-    ):
-        state_loss_eval_requirements(args)
-        quit(1)
-    if args.fiber_type == "s" and args.wavelength == 850:
-            print("Singlemode fiber does not support 850nm wavelength.")
-            quit(1)
-    if args.fiber_type == "s" and args.wavelength == 1300:
-            print("Singlemode fiber does not support 1300nm wavelength.")
-            quit(1)
-    if args.fiber_type == "m" and args.wavelength == 1310:
-            print("Multimode fiber does not support 1310nm wavelength.")
-            quit(1)
-    if args.fiber_type == "m" and args.wavelength == 1550:
-            print("Multimode fiber does not support 1550nm wavelength.")
-            quit(1)
 
-
-    # Calculate the attenuation
+    # Calculate the RX attenuation
     rx_attenuation_dBm, rx_attenuation_mW = calculate_attenuation(args.tx, args.rx)
 
     attenuation_combined = (
         f"{(rx_attenuation_mW):.4f} mW / {(rx_attenuation_dBm):.2f} dBm"
     )
+    # Create power evaluation report
     power_eval = {
         "TX mW": f"{abs(args.tx):.4f}",
         "TX dBm": f"{(args.tx_dbm):.2f}",
-        "RX Attenuation mW": f"{(rx_attenuation_mW):.4f}",
-        "RX Attenuation dBm": f"{abs(rx_attenuation_dBm):.2f}",
         "RX mW": f"{abs(args.rx):.4f}",
         "RX dBm": f"{(args.rx_dbm):.2f}",
+        "RX Attenuation mW": f"{(rx_attenuation_mW):.4f}",
+        "RX Attenuation dBm": f"{abs(rx_attenuation_dBm):.2f}",
         "RX Min dBm": f"{args.rx_target_min_dbm:.2f}",
         "RX Max dBm": f"{args.rx_target_max_dbm:.2f}",
     }
-    # Validate against loss budget if all required arguments are provided
-
+    # Begin loss evaluation
     if (
         args.fiber_type is not None
         and args.wavelength is not None
         and args.fiber_length is not None
     ):
-
-
-        num_connectors = 0 if args.num_connectors is None else args.num_connectors
-        num_splices = 0 if args.num_splices is None else args.num_splices
-        fiber_type = "singlemode" if args.fiber_type == "s" else "multimode"
         loss_budget_max_dbm = calculate_loss_budget_max_dbm(
             fiber_type,
             args.wavelength,
@@ -289,36 +309,7 @@ def main():
             "Findings": evaluation_detail,
         }
 
-    if args.json:
-        power_eval = {
-                key.replace(" ", "_"): str(value).replace(" ", "")
-                if key != "Findings"
-                else str(value)
-                for key, value in power_eval.items()
-            }
-        if loss_eval is not None:
-            loss_eval = {
-                key.replace(" ", "_"): str(value).replace(" ", "")
-                if key != "Findings"
-                else str(value)
-                for key, value in loss_eval.items()
-            }
-            print(
-                json.dumps({"power_eval": power_eval, "loss_eval": loss_eval}, indent=4)
-            )
-        else:
-            print(json.dumps({"power_eval": power_eval}, indent=4))
-        quit(0)
-    else:
-        print("\nPower Evaluation:")
-        for key, value in power_eval.items():
-            print(f"    {key}: {value}")
-        if loss_eval is not None:
-            print("\nLoss Evaluation:")
-            for key, value in loss_eval.items():
-                print(f"    {key}: {value}")
-        print("\n")
-        quit(0)
+    format_results(power_eval, loss_eval)
 
 
 if __name__ == "__main__":
